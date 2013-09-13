@@ -1,5 +1,6 @@
 package org.ldv.melun.sio.swingpac;
 
+import java.awt.Component;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
@@ -30,6 +31,8 @@ public class FenetreMain extends JFrame implements ActionListener {
   private static final String PACKAGE_BIDULES = "org.ldv.melun.sio.swingpac.etudiants";
 
   private static final int TAILLE_BIDULE = 30;
+
+  private final String ACTION_PAUSE = "Pause";
 
   // constructeur
   public FenetreMain() {
@@ -75,11 +78,20 @@ public class FenetreMain extends JFrame implements ActionListener {
     menuBar.add(menuFichier);
     JMenu jeu = new JMenu("Jeu");
     jeu.setMnemonic(KeyEvent.VK_J);
+    
     JMenuItem mn = new JMenuItem("go", KeyEvent.VK_G);
     mn.setActionCommand(ACTION_GO);
+    
+    JMenuItem pause = new JMenuItem("Pause", KeyEvent.VK_P);
+    pause.setActionCommand(ACTION_PAUSE );
+    
+    
     // l'instance de cette fenêtre est à l'écoute d'une action sur ce menu
     mn.addActionListener(this);
     jeu.add(mn);
+    pause.addActionListener(this);
+    jeu.add(pause);
+    
     menuBar.add(jeu);
 
     // TODO : ajouter une commande Pause qui stoppe le timer de tous les objets
@@ -90,10 +102,12 @@ public class FenetreMain extends JFrame implements ActionListener {
 
     // l'instance de cette fenêtre est à l'écoute d'une action sur ce menu
     mnItemQuitter.addActionListener(this);
+    
+    
 
     // TODO : définir une taille en fonction de la taille de l'écran
     // par exemple le 1/4 de l'écran pour des grands écrans, ou 1/2 ...
-    setSize(500, 500);
+    setSize(250, 500);
 
   }
 
@@ -127,7 +141,9 @@ public class FenetreMain extends JFrame implements ActionListener {
     if (!"".equals(erreurs))
       JOptionPane.showMessageDialog(null, erreurs);
   }
-
+  
+ 
+  
   /**
    * Appelé par les commandes du menu
    */
@@ -136,9 +152,18 @@ public class FenetreMain extends JFrame implements ActionListener {
 
     if (action.equals(ACTION_QUITTER)) {
       System.exit(0);
-    } else if (action.equals(ACTION_GO)) {
+    } 
+    else if (action.equals(ACTION_GO)) {
       go();
     }
-  }
+    else if (action.equals(ACTION_PAUSE)) {
+    	
+    	for (Component obj : getContentPane().getComponents()) {
+    	      if (obj instanceof Bidule)
+    	    	 ((Bidule) obj).stop();}
+    			
+      }
+  }  
+
 
 }// FentreMain
