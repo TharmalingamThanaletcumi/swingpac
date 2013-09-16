@@ -29,6 +29,12 @@ import javax.swing.Timer;
  *         direction de d√©placement (√† la pacman)
  * 
  */
+
+/**
+  * Compte le nombre de fois que this touche un autre bidule,
+   * sans Ítre touchÈ lui-mÍme
+ */
+@SuppressWarnings("serial") 
 public class Bidule extends JPanel {
 
   /**
@@ -45,7 +51,12 @@ public class Bidule extends JPanel {
    * nom de l'instance (TODO : pourrait √™tre pris par d√©faut via getClass().getName()...)
    */
   private String name;
-
+  @Override
+  public String toString() {
+      return "Bidule [incY=" + incY + ", incX=" + incX + ", name=" + name
+         + ", DELAY=" + DELAY 
+          + ", nbTouches=" + nbTouches + "]";
+    }
   /**
    * utilis√© pour d√©terminer une valeur 'al√©atoire' du DELAI ayant un impact sur
    * le d√©placement
@@ -76,6 +87,13 @@ public class Bidule extends JPanel {
    * @author kpu
    * 
    */
+  /**
+   * comptele nombre de fois que this touche un autre bidule,
+   * sans Ítre touchÈ lui-mÍme 
+   * @author thana
+   *
+   */
+  private int nbTouches; 
   public class MoveAction implements ActionListener {
 
     @Override
@@ -85,7 +103,8 @@ public class Bidule extends JPanel {
       setLocation(getX() + incX, getY() + incY);
       stayOnStage();
       manageCollisions();
-      testWiner();
+      if (Bidule.this.getParent() != null)
+    	  testWiner();
     }
   }
 
@@ -98,7 +117,7 @@ public class Bidule extends JPanel {
   public Bidule(String name) {
     super();
     this.name = name;
-    this.setSize(100, 100);
+    this.setSize(50, 50);
     this.setBackground(Color.BLUE);
     this.incX = 1;
     this.incY = 1;
@@ -170,20 +189,22 @@ public class Bidule extends JPanel {
    */
   private void manageCollisions() {
     // ai-je touch√© d'autres bidules ?
-    List<Bidule> bidules = getCollisions();
+	  
+    
+	 List<Bidule> bidules = this.getCollisions();
     for (Bidule bidule : bidules) {
       if (bidule.isGoDown()
           && bidule.getY() + bidule.getHeight() >= this.getY())
-        bidule.tuEstouchePar(this);
+    	  this.tuEstouchePar(bidule);  
       else if (bidule.isGoUp()
           && bidule.getY() <= this.getY() + this.getHeight())
-        bidule.tuEstouchePar(this);
+    	  this.tuEstouchePar(bidule);
       else if (bidule.isGoRight()
           && bidule.getX() + bidule.getWidth() >= this.getX())
-        bidule.tuEstouchePar(this);
+    	  this.tuEstouchePar(bidule);
       else if (bidule.isGoLeft()
           && bidule.getX() <= this.getWidth() + this.getX())
-        bidule.tuEstouchePar(this);
+    	  this.tuEstouchePar(bidule);
     }
   }
 
@@ -217,11 +238,16 @@ public class Bidule extends JPanel {
    * Appel√© par un autre objet lorsqu'il me touche
    * 
    * @param biduleImpacteur
+   * @param biduleQuiATouche
    *          l'objet qui vient de rentrer en collision avec moi
    */
-  public void tuEstouchePar(Bidule biduleImpacteur) {
+  
+  public void tuEstouchePar(Bidule biduleQuiATouche) { 
+	  nbTouches=0; 
+	  biduleQuiATouche.aTouche(); 
+	  Bidule biduleQuiEstTouche = this;
     // je retr√©cis
-    this.setBounds(getX() + incX, getY() + incY, getWidth() - 1,
+    biduleQuiEstTouche.setBounds(getX() + incX, getY() + incY, getWidth() - 1,
         getHeight() - 1);
 
     // TODO (plus difficile) : augmenter la taille de biduleImpacteur (dans la
@@ -230,14 +256,25 @@ public class Bidule extends JPanel {
 
     // en dessous d'une dimension minimale, l'objet
     // courant disparait de ce monde...
-    if (getWidth() < NB_MINMAL_PIXELS_VIE || getHeight() < NB_MINMAL_PIXELS_VIE) {
-      // sucide...
-      this.stop();
-      System.out.println("Je meurs :-(   " + this.name);
-      getParent().remove(this);
-    }
-
-    doAfterImpactByOther();
+   
+	  if (biduleQuiEstTouche.getWidth() < NB_MINMAL_PIXELS_VIE
+			         || biduleQuiEstTouche.getHeight() < NB_MINMAL_PIXELS_VIE) {
+	  // sucide...
+     if (biduleQuiEstTouche.getParent() == null) return;
+		       biduleQuiEstTouche.stop();
+		       System.out.println("Je meurs :-(   " + biduleQuiEstTouche.name);
+		       biduleQuiEstTouche.getParent().remove(this);
+		     } else
+		        biduleQuiEstTouche.doAfterImpactByOther();
+		    }
+    
+    private void aTouche() {
+    	    nbTouches++;    
+    	   if (nbTouches >= 3 && this.getWidth()<10){
+    	      this.setBounds(getX(), getY(),getWidth()+10, getHeight()+10);
+    	     nbTouches=0;     
+    	     System.out.println(name + " est augmentÈ");
+    	   }
   }
 
   /**
@@ -369,5 +406,8 @@ public class Bidule extends JPanel {
       goOnTop();
     if (getY() + incY < 0)
       goOnDown();
+  }
+  public boolean isRunning() { 
+	  return timer.isRunning();
   }
 }
