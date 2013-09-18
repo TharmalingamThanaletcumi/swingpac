@@ -3,14 +3,21 @@ package org.ldv.melun.sio.swingpac;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Graphics;
+import java.awt.MenuItem;
+import java.awt.Rectangle;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map.Entry;
 
 import javax.swing.BorderFactory;
 import javax.swing.JFrame;
@@ -21,14 +28,17 @@ import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.border.BevelBorder;
+import javax.swing.border.Border;
 
 import org.ldv.melun.sio.swingpac.utils.PackageUtil;
 
 /**
- * Définition de la scene du jeu et instanciation des objets. 
+ * Définition de la scene du jeu et instanciation des objets.
+ * 
  * @author lycée Léonard de Vinci - Melun - SIO-SLAM
  */
-public class FenetreMain extends JFrame implements ActionListener ,MouseListener {
+public class FenetreMain extends JFrame implements ActionListener,
+    MouseListener {
   // une constante (mot clé final)
   // c'est un moyen très pratique d'associer un écouteur d'événement
   // à un générateur d'événement.
@@ -38,36 +48,66 @@ public class FenetreMain extends JFrame implements ActionListener ,MouseListener
 
   private static final String PACKAGE_BIDULES = "org.ldv.melun.sio.swingpac.etudiants";
 
-  private static final int TAILLE_BIDULE = 50;
+  private static final String ACTION_CHALLENGE = "Challenge";
 
   private final String ACTION_PAUSE = "Pause";
+
   private JMenuItem mnPause;
-  
+
+  private int nbParties;
+
+  /**
+   * lieu où se mouvent les bidules
+   */
   private JPanel laScene;
-   private JLabel infos;
-   
+
+  /**
+   * zone présentant des informations textuelles à l'utilisateur
+   */
+  private JLabel infos;
+
+  /**
+   * pour stocker les bidules sortis de la scene lors d'une partie
+   */
+  private List<Bidule> deadBidules;
+
+  /**
+   * pour connaitre le score d'une classe de bidules au cours de plusieurs
+   * parties, clé = le nom de la classe, valeur associée = nombre de fois que la
+   * classe à gagner une partie
+   */
+  private HashMap<String, Integer> winerClasseBidules;
+
+  private Bidule currentBidule;
+
+  private boolean challenge;
+
   // constructeur
   public FenetreMain() {
     // appel un constructeur de son parent
     super("SwingPac");
     // effet : donne un titre à la fenêtre
 
+    this.deadBidules = new ArrayList<Bidule>();
+    this.winerClasseBidules = new HashMap<String, Integer>();
+    this.nbParties = 0;
+
     // l'application s'arrête lorsque cette fenêtre sera fermée.
     setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
- // pas de gestionnaire de positionnement
-        setLayout(new BorderLayout());
-        
-        laScene = new JPanel(true);
-        // pas de gestionnaire de positionnement pour la sence
-        laScene.setLayout(null);
-        
-        infos = new JLabel();
-        infos.setBorder(BorderFactory.createBevelBorder(BevelBorder.LOWERED));
-        infos.setText("test");
-    
-        this.add(laScene, BorderLayout.CENTER);
-        this.add(infos, BorderLayout.SOUTH);
+    // pas de gestionnaire de positionnement
+    setLayout(new BorderLayout());
+
+    laScene = new JPanel(true);
+    // pas de gestionnaire de positionnement pour la sence
+    laScene.setLayout(null);
+
+    infos = new JLabel();
+    infos.setBorder(BorderFactory.createBevelBorder(BevelBorder.LOWERED));
+    infos.setText("test");
+
+    this.add(laScene, BorderLayout.CENTER);
+    this.add(infos, BorderLayout.SOUTH);
 
     // initialisation de la fenêtre
     init();
@@ -101,23 +141,26 @@ public class FenetreMain extends JFrame implements ActionListener ,MouseListener
     menuBar.add(menuFichier);
     JMenu jeu = new JMenu("Jeu");
     jeu.setMnemonic(KeyEvent.VK_J);
-    
-    JMenuItem mn = new JMenuItem("go", KeyEvent.VK_G);
+    JMenuItem mn = new JMenuItem("Jouer une partie", KeyEvent.VK_G);
     mn.setActionCommand(ACTION_GO);
-    
-    //JMenuItem pause = new JMenuItem("Pause", KeyEvent.VK_P);
-    //pause.setActionCommand(ACTION_PAUSE );
-    mnPause = new JMenuItem("Start", KeyEvent.VK_P);
-    mnPause.setActionCommand(ACTION_PAUSE); 
-    
     // l'instance de cette fenêtre est à l'écoute d'une action sur ce menu
     mn.addActionListener(this);
     jeu.add(mn);
-    //pause.addActionListener(this);
-    //jeu.add(pause);
+
+    mn = new JMenuItem("Challenge", KeyEvent.VK_H);
+    mn.setActionCommand(ACTION_CHALLENGE);
+    // l'instance de cette fenêtre est à l'écoute d'une action sur ce menu
+    mn.addActionListener(this);
+    jeu.add(mn);
+
+    jeu.addSeparator();
+
+    mnPause = new JMenuItem("Start/Stop", KeyEvent.VK_P);
+    mnPause.setActionCommand(ACTION_PAUSE);
+    // l'instance de cette fenêtre est à l'écoute d'une action sur ce menu
     mnPause.addActionListener(this);
     jeu.add(mnPause);
-    
+
     menuBar.add(jeu);
 
     // TODO : ajouter une commande Pause qui stoppe le timer de tous les objets
@@ -128,160 +171,227 @@ public class FenetreMain extends JFrame implements ActionListener ,MouseListener
 
     // l'instance de cette fenêtre est à l'écoute d'une action sur ce menu
     mnItemQuitter.addActionListener(this);
-    
-    //getContentPane().setBackground(Color.WHITE); 
-    //fond d'ecran
+
     laScene.setBorder(BorderFactory.createBevelBorder(BevelBorder.LOWERED));
     laScene.setBackground(Color.WHITE);
 
     // TODO : définir une taille en fonction de la taille de l'écran
     // par exemple le 1/4 de l'écran pour des grands écrans, ou 1/2 ...
     setSize(500, 500);
-
   }
 
   /**
    * Injecte des objets Bidule dans cette instance de fenêtre
    */
   private void go() {
+    nbParties++;
     // récupère la liste des classes du package en question
     String[] classes = PackageUtil.getClasses(PACKAGE_BIDULES);
-    List<String> classesShuffles = Arrays.asList(classes);
-    
+    //
+    // List<String> test = new ArrayList<String>();
+    // for (int i = 0; i < classes.length; i++) {
+    // test.add(classes[i]);
+    // test.add(classes[i]);
+    // test.add(classes[i]);
+    // test.add(classes[i]);
+    // }
+
+    List<String> classesShuffles = /* test; */Arrays.asList(classes);
+
     // change l'ordre des éléments dans le tableau
     Collections.shuffle(classesShuffles);
     System.out.println(classesShuffles);
-    
+
     // on instancie les classes (un objet par class)
     // et l'ajoute à la scene (fenetre)
     String erreurs = "";
+
     int margeBidule = 4;
-        int largeurCadreBidulle = TAILLE_BIDULE + margeBidule;
-    
-       // mettre les bidules dans le cadre en tentant d'�viter les
-       // chevauchements...
-        int xDansScene = 0;
-        int yDansScene = 0;
-        System.out.println(getWidth());
-    
+    int largeurCadreBidulle = Bidule.TAILLE_BIDULE + margeBidule;
+
+    // mettre les bidules dans le cadre en tentant d'éviter les
+    // chevauchements...
+    int xDansScene = 2;
+    int yDansScene = 2;
+
+    System.out.println("Largeur de la fenêtre = " + getWidth());
+
     for (int i = 0; i < classesShuffles.size(); i++) {
       try {
         Bidule bidule = (Bidule) Class.forName(
             PACKAGE_BIDULES + "." + classesShuffles.get(i)).newInstance();
-       // bidule.setLocation(20 + i * TAILLE_BIDULE, +i * TAILLE_BIDULE);
-        bidule.addMouseListener(this);
         bidule.stop();
-        
-               //if (xDansScene + TAILLE_BIDULE > getWidth()) {
-        	if (xDansScene + TAILLE_BIDULE > laScene.getWidth()) { 
-                  xDansScene = 0;
-                  yDansScene += largeurCadreBidulle;
-                }
-        
-                bidule.setLocation(xDansScene, yDansScene);
-                // bidule.setLocation(20 + i * TAILLE_BIDULE, +i * TAILLE_BIDULE);
-        
-                xDansScene += largeurCadreBidulle; 
+
+        // faut-il initialier le dictionnaire ?
+        if (!winerClasseBidules.containsKey(PACKAGE_BIDULES + "."
+            + classesShuffles.get(i)))
+          // oui
+          winerClasseBidules.put(
+              PACKAGE_BIDULES + "." + classesShuffles.get(i), 0);
+
+        bidule.addMouseListener(this);
+
+        if (xDansScene + Bidule.TAILLE_BIDULE > laScene.getWidth()) {
+          xDansScene = 0;
+          yDansScene += largeurCadreBidulle;
+        }
+
+        bidule.setLocation(xDansScene, yDansScene);
+
+        xDansScene += largeurCadreBidulle;
+
         // ajout l'objet à la fenêtre
-        //this.add(bidule);
         laScene.add(bidule);
       } catch (Exception e) {
         erreurs = e.getMessage();
       }
     }
-    //this.getContentPane().invalidate();
-    //this.repaint(); 
-    
     if (!"".equals(erreurs))
-      JOptionPane.showMessageDialog(null, erreurs);
-    
+      JOptionPane.showMessageDialog(null, erreurs);    
     this.getContentPane().invalidate();
-     this.repaint();
+    this.repaint();
   }
-  
- 
-  private void pause() {
-	  //for (Component obj : getContentPane().getComponents()) {
-	      //if (obj instanceof Bidule)
-	    	 //((Bidule) obj).stop();}
-	  
-	 
-	     System.out.println("nb compos : "
-	        // + this.getContentPane().getComponentCount());
-	    	 + this.laScene.getComponentCount());
-	     Bidule b = null;
-	       //for (Component obj : this.getContentPane().getComponents()) {
-	     for (Component obj : this.laScene.getComponents()) {     
-	     if (obj instanceof Bidule) {
-	 
-	          b = (Bidule) obj;
-	          if (b.isRunning()) {
-	            b.stop();
-	          } else {
-	            b.start();
-	          }
-	         }
-	       }
-	      if (b != null) {
-	        if (b.isRunning())
-	          mnPause.setText("Stop");
-	        else
-	          mnPause.setText("Start");
-	      }
-  }
+
   /**
    * Appelé par les commandes du menu
    */
   public void actionPerformed(ActionEvent evt) {
     String action = evt.getActionCommand();
-
     if (action.equals(ACTION_QUITTER)) {
       System.exit(0);
-    } 
-    else if (action.equals(ACTION_GO)) {
+    } else if (action.equals(ACTION_GO)) {
       go();
+    } else if (action.equals(ACTION_CHALLENGE)) {
+      challenge = true;
+      go();
+    } else if (action.equals(ACTION_PAUSE)) {
+      startStopFlip();
     }
-    else if (action.equals(ACTION_PAUSE)) {
-    	
-    	pause();
-    			
-      }
   }
-  
+
+  private void startStopFlip() {
+    System.out.println("nb compos : " + this.laScene.getComponentCount());
+    Bidule b = null;
+    for (Component obj : this.laScene.getComponents()) {
+      if (obj instanceof Bidule) {
+        b = (Bidule) obj;
+        if (b.isRunning()) {
+          b.stop();
+        } else {
+          b.start();
+        }
+      }
+    }
+    if (b != null) {
+      if (b.isRunning())
+        mnPause.setText("Stop");
+      else
+        mnPause.setText("Start");
+    }
+  }
+
+  public void addDeadBidule(Bidule biduleQuiMeurt) {
+    deadBidules.add(biduleQuiMeurt);
+    laScene.remove(biduleQuiMeurt);
+    System.out.println("Mort de " + biduleQuiMeurt.getName());
+    infos.setText("Mort de " + biduleQuiMeurt.getName());
+    if (winerClasseBidules.size() - 1 == deadBidules.size()) {
+      // fin de la partie, il ne reste qu'un bidule dans la scene...
+      for (Component o : this.laScene.getComponents()) {
+        if (o instanceof Bidule) {
+          infos.setText("GAGNE : " + o.toString());
+          laScene.remove(o);
+          deadBidules.clear();
+          mnPause.setText("Start");
+          if (!challenge) {
+            JOptionPane.showMessageDialog(null, "PARTIE GAGNÉE PAR : " + o.getName());
+          } else {
+            deadBidules.clear();
+            // ajoute 1 à la classe concernée
+            winerClasseBidules.put(o.getClass().getName(),
+                winerClasseBidules.get(o.getClass().getName()) + 1);
+            String winer = getWiner();
+            if (null == winer) {
+              go(); // again
+              startStopFlip();
+            } else {
+              // fin, affiche le résultat
+              List<String> resultat = new ArrayList<String>();
+              for (String classe : winerClasseBidules.keySet()) {
+                resultat.add(winerClasseBidules.get(classe) + " : " + classe);
+              }
+              Collections.sort(resultat);
+              StringBuffer res = new StringBuffer();
+              for (int i = resultat.size() - 1; i >= 0; i--) {
+                res.append(resultat.get(i) + "\n");
+              }
+              System.out.println("(nb parties = " + nbParties
+                  + ") \nGAGNANT = " + winer + "\n" + res.toString());
+              System.out.println("challenge CLASSE GAGNANTE : " + winer);
+              JOptionPane.showMessageDialog(null, "(nb parties = " + nbParties
+                  + ") \nGAGNANT = " + winer + "\n" + res.toString());
+              infos.setText("CHALLENGE CLASSE GAGNANTE : " + winer);
+              challenge = false;
+            }
+            break;
+          }
+        }
+      }
+    }
+  }
+
   /**
-   * Les bidules sont �cout�s par this
+   * Recherche la classe ayant obtenu 3 vainqueurs
+   * 
+   * @return le vainqueur ou null
+   */
+  private String getWiner() {
+    for (String classe : winerClasseBidules.keySet()) {
+      if (winerClasseBidules.get(classe) == 3)
+        return classe;
+    }
+    return null;
+  }
+
+  // ///////////////////////////////////////// méthodes MouseMListener
+  /**
+   * Les bidules sont écoutés par this
    */
   @Override
   public void mouseClicked(MouseEvent e) {
-    JPanel bidule = (JPanel) e.getSource();
-    infos.setText(bidule.toString());
-    // ou, tout simplement :
-    //  infos.setText(e.getSource().toString());    
   }
 
   @Override
   public void mousePressed(MouseEvent e) {
     // TODO Auto-generated method stub
-    
   }
 
   @Override
   public void mouseReleased(MouseEvent e) {
     // TODO Auto-generated method stub
-    
   }
 
   @Override
   public void mouseEntered(MouseEvent e) {
-    // TODO Auto-generated method stub
-    
+    if (currentBidule != e.getSource()) {
+      currentBidule = (Bidule) e.getSource();
+      infos.setText(e.getSource().toString());
+      currentBidule.setSelected(true);
+      currentBidule.revalidate();
+      currentBidule.repaint();
+    }
   }
 
   @Override
   public void mouseExited(MouseEvent e) {
-    // TODO Auto-generated method stub
-    
-  }  
+    if (currentBidule == null)
+      return;
 
+    currentBidule.setSelected(false);
+    currentBidule.revalidate();
+    currentBidule.repaint();
+    currentBidule = null;
+    infos.setText(" ");
+  }
 
 }// FentreMain
